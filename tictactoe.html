@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Koordinat Tahmin Modelleri (Q-Learning) — Tic-Tac-Toe</title>
+<title>Koordinat Modelleri — Tic-Tac-Toe</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -22,6 +22,7 @@ h1{font-family:'Syne',sans-serif;font-size:clamp(1.1rem,3vw,1.5rem);font-weight:
   letter-spacing:.15em;text-transform:uppercase;margin-bottom:4px;color:var(--text)}
 .subtitle{font-size:.62rem;color:var(--muted);letter-spacing:.1em;margin-bottom:18px}
 
+/* ── Tab bar ── */
 .tab-bar{display:flex;gap:4px;margin-bottom:18px;position:relative;z-index:1}
 .tab{font-family:'Space Mono',monospace;font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;
   padding:6px 16px;border-radius:4px;border:1px solid var(--border);background:var(--panel);
@@ -31,10 +32,297 @@ h1{font-family:'Syne',sans-serif;font-size:clamp(1.1rem,3vw,1.5rem);font-weight:
 .tab.active-play{background:rgba(74,222,128,.12);border-color:rgba(74,222,128,.5);color:var(--green)}
 .tab:disabled{opacity:.3;cursor:not-allowed}
 
+/* ── Pages ── */
 .page{display:none;flex-direction:column;align-items:center;width:100%;position:relative;z-index:1}
 .page.active{display:flex}
 
+/* ══════ TRAINING LAYOUT ══════ */
 .layout{display:grid;grid-template-columns:210px auto 210px;gap:16px;align-items:start;max-width:800px;width:100%}
+
+.model-card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px;transition:border-color .3s,box-shadow .3s}
+.model-card.active-x{border-color:var(--x-color);box-shadow:0 0 14px rgba(255,77,109,.15)}
+.model-card.active-y{border-color:var(--y-color);box-shadow:0 0 14px rgba(76,201,240,.15)}
+.model-label{font-family:'Syne',sans-serif;font-size:.6rem;letter-spacing:.15em;text-transform:uppercase;margin-bottom:6px;color:var(--muted)}
+.model-name{font-family:'Syne',sans-serif;font-size:1rem;font-weight:800;margin-bottom:10px}
+.model-x .model-name{color:var(--x-color)} .model-y .model-name{color:var(--y-color)}
+.model-stat{display:flex;justify-content:space-between;font-size:.6rem;color:var(--muted);padding:3px 0;border-bottom:1px solid var(--border)}
+.model-stat:last-of-type{border-bottom:none} .model-stat span:last-child{color:var(--text)}
+.move-badge{display:inline-block;font-size:.55rem;padding:2px 6px;border-radius:3px;margin-top:8px;letter-spacing:.06em;opacity:0;transition:opacity .3s}
+.move-badge.show{opacity:1}
+.model-x .move-badge{background:rgba(255,77,109,.1);color:var(--x-color);border:1px solid rgba(255,77,109,.3)}
+.model-y .move-badge{background:rgba(76,201,240,.1);color:var(--y-color);border:1px solid rgba(76,201,240,.3)}
+
+.center-col{display:flex;flex-direction:column;align-items:center;gap:12px}
+
+/* Board */
+.board-wrap{position:relative}
+.board{display:grid;grid-template-columns:repeat(3,84px);grid-template-rows:repeat(3,84px);
+  gap:4px;background:var(--border);border-radius:8px;overflow:hidden;padding:4px}
+.cell{background:var(--cell-bg);border-radius:4px;display:flex;align-items:center;
+  justify-content:center;font-family:'Syne',sans-serif;font-size:2rem;font-weight:800;
+  cursor:default;position:relative;transition:background .2s}
+.cell.x-cell{color:var(--x-color)} .cell.o-cell{color:var(--y-color)}
+.cell.win-cell{background:rgba(248,194,58,.1);color:var(--win)!important;animation:pulse-win .6s ease}
+.cell.just-placed::after{content:'';position:absolute;inset:0;border-radius:4px;animation:flash-place .4s ease}
+.cell.x-cell.just-placed::after{background:rgba(255,77,109,.25)}
+.cell.o-cell.just-placed::after{background:rgba(76,201,240,.25)}
+@keyframes flash-place{0%{opacity:1}100%{opacity:0}}
+@keyframes pulse-win{0%{transform:scale(1)}50%{transform:scale(1.08)}100%{transform:scale(1)}}
+.axis-x{display:flex;gap:4px;padding:0 4px;margin-top:4px}
+.axis-x span{width:84px;text-align:center;font-size:.56rem;color:var(--muted)}
+.axis-y{position:absolute;left:-18px;top:4px;display:flex;flex-direction:column;gap:4px}
+.axis-y span{height:84px;display:flex;align-items:center;font-size:.56rem;color:var(--muted)}
+
+.status-bar{text-align:center;font-size:.65rem;letter-spacing:.08em;color:var(--muted);min-height:18px}
+.hl-x{color:var(--x-color)} .hl-y{color:var(--y-color)} .hl-w{color:var(--win);font-weight:bold} .hl-g{color:var(--green);font-weight:bold}
+
+.array-box{background:var(--panel);border:1px solid var(--border);border-radius:6px;
+  padding:8px 12px;width:100%;max-width:284px;font-size:.58rem;color:var(--muted);line-height:1.8;word-break:break-all}
+.array-box .lbl{color:var(--neutral);margin-bottom:2px;font-size:.54rem;letter-spacing:.1em;text-transform:uppercase}
+.cx{color:var(--x-color)} .cy{color:var(--y-color)}
+
+/* Controls */
+.controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center}
+button{font-family:'Space Mono',monospace;font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;
+  border:1px solid var(--border);border-radius:4px;padding:7px 14px;cursor:pointer;
+  transition:all .2s;background:var(--panel);color:var(--text)}
+button:hover{border-color:var(--neutral)} button:disabled{opacity:.3;cursor:not-allowed}
+#btn-step{background:rgba(248,194,58,.1);border-color:rgba(248,194,58,.4);color:var(--win)}
+#btn-step:hover{background:rgba(248,194,58,.18)}
+#btn-auto{background:rgba(76,201,240,.08);border-color:rgba(76,201,240,.3);color:var(--y-color)}
+#btn-auto:hover{background:rgba(76,201,240,.15)}
+#btn-auto.running{background:rgba(255,77,109,.1);border-color:rgba(255,77,109,.4);color:var(--x-color)}
+.speed-wrap{display:flex;align-items:center;gap:6px;font-size:.56rem;color:var(--muted)}
+input[type=range]{width:70px;accent-color:var(--y-color)}
+
+/* Right column stack */
+.right-col{display:flex;flex-direction:column;gap:12px}
+
+/* Maturity */
+.maturity-wrap{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px 14px}
+.mat-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.mat-title{font-family:'Syne',sans-serif;font-size:.62rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.mat-pct{font-family:'Syne',sans-serif;font-size:.85rem;font-weight:800;color:var(--text)}
+.mat-track{height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:6px}
+.mat-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--y-color),var(--green));border-radius:3px;transition:width .4s}
+.mat-fill.mature{background:var(--green);box-shadow:0 0 6px rgba(74,222,128,.5)}
+.mat-hint{font-size:.53rem;color:var(--muted);line-height:1.5}
+
+/* Export */
+.export-panel{background:rgba(74,222,128,.05);border:1px solid rgba(74,222,128,.2);border-radius:8px;padding:12px 14px}
+.exp-title{font-family:'Syne',sans-serif;font-size:.65rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--green);margin-bottom:6px}
+.exp-info{font-size:.56rem;color:var(--muted);line-height:1.65;margin-bottom:10px} .exp-info span{color:var(--text)}
+.exp-btn{width:100%;margin-bottom:6px}
+.exp-btn:last-child{margin-bottom:0}
+#btn-export{background:rgba(74,222,128,.1);border-color:rgba(74,222,128,.35);color:var(--green)}
+#btn-export:hover:not(:disabled){background:rgba(74,222,128,.2)}
+#btn-play-compiled{background:rgba(248,194,58,.08);border-color:rgba(248,194,58,.35);color:var(--win)}
+#btn-play-compiled:hover:not(:disabled){background:rgba(248,194,58,.15)}
+
+/* Stats */
+.stats-row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px;font-size:.58rem}
+.stat-chip{background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:5px 12px;display:flex;flex-direction:column;align-items:center;gap:2px}
+.sc-lbl{color:var(--muted);font-size:.5rem;letter-spacing:.1em;text-transform:uppercase}
+.sc-val{font-family:'Syne',sans-serif;font-size:.85rem;font-weight:800}
+.sx .sc-val{color:var(--x-color)} .sy .sc-val{color:var(--y-color)} .sd .sc-val{color:var(--muted)}
+.sm .sc-val{color:var(--neutral);font-size:.7rem} .sg .sc-val{color:var(--green)}
+
+/* Conv chart */
+.chart-wrap{width:100%;max-width:800px;margin-top:14px}
+.chart-lbl{font-size:.54rem;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:5px}
+#conv-chart{width:100%;height:72px;display:block;background:var(--panel);border:1px solid var(--border);border-radius:6px}
+
+/* Hamle Isı Haritası */
+.heatmap-wrap{width:100%;max-width:800px;margin-top:14px}
+.heatmap-row{display:flex;gap:24px;justify-content:center;flex-wrap:wrap}
+.heatmap-block{display:flex;flex-direction:column;align-items:center;gap:6px}
+.heatmap-title{font-size:.54rem;color:var(--muted);letter-spacing:.1em;text-transform:uppercase}
+.heatmap-grid{display:grid;grid-template-columns:repeat(3,56px);grid-template-rows:repeat(3,56px);gap:3px;background:var(--border);border-radius:6px;padding:3px}
+.hmap-cell{background:var(--cell-bg);border-radius:3px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;position:relative;transition:background .3s}
+.hmap-cell .hc-pct{font-family:'Syne',sans-serif;font-size:.75rem;font-weight:800}
+.hmap-cell .hc-n{font-size:.44rem;color:var(--muted)}
+
+/* Log */
+.log-wrap{width:100%;max-width:800px;margin-top:12px}
+.log-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px}
+.log-title-sm{font-family:'Syne',sans-serif;font-size:.58rem;letter-spacing:.15em;text-transform:uppercase;color:var(--muted)}
+.log-clr{font-size:.5rem;color:var(--muted);background:none;border:1px solid var(--border);border-radius:3px;cursor:pointer;padding:2px 6px}
+#log{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:7px 12px;
+  height:110px;overflow-y:auto;font-size:.56rem;line-height:2;color:var(--muted)}
+#log .entry{display:flex;gap:8px;flex-wrap:wrap}
+#log .game-num{color:var(--border);min-width:28px}
+#log .cw{color:var(--win)} #log .cm{color:var(--neutral)}
+#log::-webkit-scrollbar{width:3px} #log::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* ══════ PLAY PAGE ══════ */
+.play-layout{display:flex;flex-direction:column;align-items:center;gap:14px;width:100%;max-width:480px}
+.play-heading{font-family:'Syne',sans-serif;font-size:.8rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--green)}
+.play-sub{font-size:.58rem;color:var(--muted);letter-spacing:.07em}
+.turn-info{background:rgba(74,222,128,.06);border:1px solid rgba(74,222,128,.25);border-radius:5px;
+  padding:6px 18px;font-size:.6rem;letter-spacing:.07em;text-align:center;color:var(--green);transition:all .3s}
+.turn-info.ai-turn{background:rgba(255,77,109,.06);border-color:rgba(255,77,109,.25);color:var(--x-color)}
+.turn-info.draw-turn{background:rgba(248,194,58,.06);border-color:rgba(248,194,58,.25);color:var(--win)}
+
+.play-board-wrap{position:relative}
+.play-board{display:grid;grid-template-columns:repeat(3,100px);grid-template-rows:repeat(3,100px);
+  gap:5px;background:var(--border);border-radius:10px;overflow:hidden;padding:5px}
+.pcell{background:var(--cell-bg);border-radius:5px;display:flex;align-items:center;
+  justify-content:center;font-family:'Syne',sans-serif;font-size:2.4rem;font-weight:800;
+  cursor:pointer;position:relative;transition:background .15s}
+.pcell:hover:not(.taken){background:var(--cell-hover)}
+.pcell.taken{cursor:not-allowed}
+.pcell.human-cell{color:var(--green)}
+.pcell.ai-cell{color:var(--x-color)}
+.pcell.win-cell{background:rgba(248,194,58,.1);color:var(--win)!important;animation:pulse-win .5s ease}
+.pcell.hp::after{content:'';position:absolute;inset:0;border-radius:5px;animation:flash-place .4s ease;background:rgba(74,222,128,.2)}
+.pcell.ap::after{content:'';position:absolute;inset:0;border-radius:5px;animation:flash-place .4s ease;background:rgba(255,77,109,.2)}
+
+.play-status{text-align:center;font-size:.68rem;letter-spacing:.07em;color:var(--muted);min-height:20px}
+.hl-h{color:var(--green);font-weight:bold} .hl-ai{color:var(--x-color);font-weight:bold}
+
+.score-row{display:flex;gap:10px}
+.sc2{background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:6px 18px;display:flex;flex-direction:column;align-items:center;gap:2px}
+.sc2 .lb{font-size:.5rem;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.sc2 .nv{font-family:'Syne',sans-serif;font-size:1.2rem;font-weight:800}
+.sc2.sh .nv{color:var(--green)} .sc2.sa .nv{color:var(--x-color)} .sc2.sd2 .nv{color:var(--muted)}
+
+.play-ctrl{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+#btn-back{background:rgba(248,194,58,.08);border-color:rgba(248,194,58,.3);color:var(--win)}
+#btn-back:hover{background:rgba(248,194,58,.15)}
+#btn-new-play{background:rgba(74,222,128,.08);border-color:rgba(74,222,128,.3);color:var(--green)}
+#btn-new-play:hover{background:rgba(74,222,128,.15)}
+
+/* ══════ MODAL ══════ */
+.modal-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:200;align-items:center;justify-content:center;padding:16px}
+.modal-ov.open{display:flex}
+.modal{background:var(--panel);border:1px solid var(--border);border-radius:10px;max-width:700px;width:100%;max-height:82vh;display:flex;flex-direction:column}
+.modal-hd{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border)}
+.modal-ttl{font-family:'Syne',sans-serif;font-size:.7rem;font-weight:800;color:var(--green);letter-spacing:.12em;text-transform:uppercase}
+.modal-acts{display:flex;gap:6px}
+#btn-copy{font-size:.56rem;background:rgba(74,222,128,.1);border-color:rgba(74,222,128,.35);color:var(--green)}
+#btn-dl{font-size:.56rem;background:rgba(76,201,240,.08);border-color:rgba(76,201,240,.3);color:var(--y-color)}
+.btn-cls{font-size:.56rem;background:none;border:1px solid var(--border);color:var(--muted)}
+pre#code-out{flex:1;overflow:auto;margin:0;padding:14px 16px;font-family:'Space Mono',monospace;
+  font-size:.58rem;line-height:1.7;color:#9be8a0;background:transparent;white-space:pre}
+pre#code-out::-webkit-scrollbar{width:4px;height:4px}
+pre#code-out::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+@media(max-width:650px){
+  .layout{grid-template-columns:1fr;justify-items:center}
+  .model-card,.right-col,.maturity-wrap,.export-panel{width:100%;max-width:290px}
+  .center-col{order:-1}
+}
+</style>
+</head>
+<body>
+<h1>Koordinat Modelleri</h1>
+<p class="subtitle">Tic-Tac-Toe · Pozisyonel Hafıza · Olgunluk Tespiti · JS Derleme</p>
+
+<div class="tab-bar">
+  <button class="tab active-train" id="tab-train" onclick="showPage('train')">⚙ Eğitim</button>
+  <button class="tab" id="tab-play" onclick="showPage('play')" disabled>▶ Derlenmiş Model ile Oyna</button>
+</div>
+
+<div class="page active" id="page-train">
+  <div class="layout">
+
+    <div class="model-card model-x" id="card-x">
+      <div class="model-label">Eksen: X (Sütun)</div>
+      <div class="model-name">Model-X</div>
+      <div class="model-stat"><span>Sembol</span><span style="color:var(--x-color)">✕</span></div>
+      <div class="model-stat"><span>Hafıza</span><span id="mem-x">0</span></div>
+      <div class="model-stat"><span>Galibiyet</span><span id="win-x">0</span></div>
+      <div class="move-badge" id="badge-x"></div>
+    </div>
+
+    <div class="center-col">
+      <div class="status-bar" id="status">Hazır.</div>
+      <div class="board-wrap">
+        <div class="axis-y" id="axis-y"></div>
+        <div class="board" id="board"></div>
+        <div class="axis-x" id="axis-x"></div>
+      </div>
+      <div class="array-box">
+        <div class="lbl">Hamle Dizisi</div>
+        <div id="array-val">[ ]</div>
+      </div>
+      <div class="controls">
+        <button id="btn-step">▶ Adım</button>
+        <button id="btn-auto">⏩ Otomatik</button>
+        <button id="btn-reset">↺ Yeni</button>
+        <div class="speed-wrap">
+          <span>Hız</span>
+          <input type="range" id="speed" min="30" max="1200" value="600" step="30">
+        </div>
+      </div>
+    </div>
+
+    <div class="right-col">
+      <div class="model-card model-y" id="card-y">
+        <div class="model-label">Eksen: Y (Satır)</div>
+        <div class="model-name">Model-Y</div>
+        <div class="model-stat"><span>Sembol</span><span style="color:var(--y-color)">○</span></div>
+        <div class="model-stat"><span>Hafıza</span><span id="mem-y">0</span></div>
+        <div class="model-stat"><span>Galibiyet</span><span id="win-y">0</span></div>
+        <div class="move-badge" id="badge-y"></div>
+      </div>
+
+      <div class="maturity-wrap">
+        <div class="mat-header">
+          <span class="mat-title">Olgunluk</span>
+          <span class="mat-pct" id="mat-pct">0%</span>
+        </div>
+        <div class="mat-track"><div class="mat-fill" id="mat-fill"></div></div>
+        <div class="mat-hint" id="mat-hint">Minimax ile optimal hamleler öğreniliyor. 150 oyun sonunda hafıza tamamlanır.</div>
+      </div>
+
+      <div class="export-panel">
+        <div class="exp-title">⬡ Derleme</div>
+        <div class="exp-info" id="exp-info">Model henüz olgunlaşmadı.<br>Eğitim bitince hafıza <span>if/else</span> JS'e derlenir.</div>
+        <button class="exp-btn" id="btn-export" disabled>↓ JS Olarak Derle &amp; Göster</button>
+        <button class="exp-btn" id="btn-play-compiled" disabled>▶ Derlenmiş ile Oyna</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-chip sx"><span class="sc-lbl">Model-X</span><span class="sc-val" id="s-wx">0</span></div>
+    <div class="stat-chip sy"><span class="sc-lbl">Model-Y</span><span class="sc-val" id="s-wy">0</span></div>
+    <div class="stat-chip sd"><span class="sc-lbl">Beraberlik</span><span class="sc-val" id="s-d">0</span></div>
+    <div class="stat-chip sm"><span class="sc-lbl">Toplam Oyun</span><span class="sc-val" id="s-t">0</span></div>
+    <div class="stat-chip sg"><span class="sc-lbl">Ort. Tur</span><span class="sc-val" id="s-avg">—</span></div>
+    <div class="stat-chip sm"><span class="sc-lbl">Politika Değişimi</span><span class="sc-val" id="s-std">—</span></div>
+  </div>
+
+  <div class="chart-wrap">
+    <div class="chart-lbl">Oyun başına tur sayısı · — ort (son5) &nbsp;|&nbsp; — anlık</div>
+    <canvas id="conv-chart"></canvas>
+  </div>
+
+  <div class="heatmap-wrap">
+    <div class="chart-lbl">Hamle Isı Haritası · Her kare için seçilme sıklığı</div>
+    <div class="heatmap-row">
+      <div class="heatmap-block">
+        <div class="heatmap-title" style="color:var(--x-color)">Model-X (✕)</div>
+        <div class="heatmap-grid" id="hmap-x"></div>
+      </div>
+      <div class="heatmap-block">
+        <div class="heatmap-title" style="color:var(--y-color)">Model-Y (○)</div>
+        <div class="heatmap-grid" id="hmap-y"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="log-wrap">
+    <div class="log-head">
+      <span class="log-title-sm">Oyun Günlüğü</span>
+      <button class="log-clr" id="btn-log-clr">Temizle</button>
+    </div>
+    <div id="log"></div>
+  </div>
+</div>
+
+<div class="page" id="page-pla.layout{display:grid;grid-template-columns:210px auto 210px;gap:16px;align-items:start;max-width:800px;width:100%}
 
 .model-card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px;transition:border-color .3s,box-shadow .3s}
 .model-card.active-x{border-color:var(--x-color);box-shadow:0 0 14px rgba(255,77,109,.15)}
