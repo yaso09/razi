@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Koordinat Modelleri — Tic-Tac-Toe</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#0a0a0f; --panel:#111118; --border:#1e1e2e;
+  --x-color:#ff4d6d; --y-color:#4cc9f0; --neutral:#aaa;
+  --win:#f8c23a; --text:#e8e8f0; --muted:#55556a;
+  --cell-bg:#13131e; --cell-hover:#1a1a2e; --green:#4ade80; --orange:#fb923c;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Space Mono',monospace;
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:20px 16px 60px}
+body::before{content:'';position:fixed;inset:0;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events:none;z-index:0}
+h1{font-family:'Syne',sans-serif;font-size:clamp(1.1rem,3vw,1.5rem);font-weight:800;
+  letter-spacing:.15em;text-transform:uppercase;margin-bottom:4px;color:var(--text)}
+.subtitle{font-size:.62rem;color:var(--muted);letter-spacing:.1em;margin-bottom:18px}
+
+/* ── Tab bar ── */
+.tab-bar{display:flex;gap:4px;margin-bottom:18px;position:relative;z-index:1}
+.tab{font-family:'Space Mono',monospace;font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;
+  padding:6px 16px;border-radius:4px;border:1px solid var(--border);background:var(--panel);
+  color:var(--muted);cursor:pointer;transition:all .2s}
+.tab:hover{color:var(--text)}
+.tab.active-train{background:rgba(248,194,58,.1);border-color:rgba(248,194,58,.5);color:var(--win)}
+.tab.active-play{background:rgba(74,222,128,.12);border-color:rgba(74,222,128,.5);color:var(--green)}
+.tab:disabled{opacity:.3;cursor:not-allowed}
+
+/* ── Pages ── */
+.page{display:none;flex-direction:column;align-items:center;width:100%;position:relative;z-index:1}
+.page.active{display:flex}
+
+/* ══════ TRAINING LAYOUT ══════ */
+.layout{display:grid;grid-template-columns:210px auto 210px;gap:16px;align-items:start;max-width:800px;width:100%}
+
+.model-card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px;transition:border-color .3s,box-shadow .3s}
+.model-card.active-x{border-color:var(--x-color);box-shadow:0 0 14px rgba(255,77,109,.15)}
+.model-card.active-y{border-color:var(--y-color);box-shadow:0 0 14px rgba(76,201,240,.15)}
+.model-label{font-family:'Syne',sans-serif;font-size:.6rem;letter-spacing:.15em;text-transform:uppercase;margin-bottom:6px;color:var(--muted)}
+.model-name{font-family:'Syne',sans-serif;font-size:1rem;font-weight:800;margin-bottom:10px}
+.model-x .model-name{color:var(--x-color)} .model-y .model-name{color:var(--y-color)}
+.model-stat{display:flex;justify-content:space-between;font-size:.6rem;color:var(--muted);padding:3px 0;border-bottom:1px solid var(--border)}
+.model-stat:last-of-type{border-bottom:none} .model-stat span:last-child{color:var(--text)}
+.move-badge{display:inline-block;font-size:.55rem;padding:2px 6px;border-radius:3px;margin-top:8px;letter-spacing:.06em;opacity:0;transition:opacity .3s}
+.move-badge.show{opacity:1}
+.model-x .move-badge{background:rgba(255,77,109,.1);color:var(--x-color);border:1px solid rgba(255,77,109,.3)}
+.model-y .move-badge{background:rgba(76,201,240,.1);color:var(--y-color);border:1px solid rgba(76,201,240,.3)}
+
+.center-col{display:flex;flex-direction:column;align-items:center;gap:12px}
+
+/* Board */
+.board-wrap{position:relative}
+.board{display:grid;grid-template-columns:repeat(3,84px);grid-template-rows:repeat(3,84px);
+  gap:4px;background:var(--border);border-radius:8px;overflow:hidden;padding:4px}
+.cell{background:var(--cell-bg);border-radius:4px;display:flex;align-items:center;
+  justify-content:center;font-family:'Syne',sans-serif;font-size:2rem;font-weight:800;
+  cursor:default;position:relative;transition:background .2s}
+.cell.x-cell{color:var(--x-color)} .cell.o-cell{color:var(--y-color)}
+.cell.win-cell{background:rgba(248,194,58,.1);color:var(--win)!important;animation:pulse-win .6s ease}
+.cell.just-placed::after{content:'';position:absolute;inset:0;border-radius:4px;animation:flash-place .4s ease}
+.cell.x-cell.just-placed::after{background:rgba(255,77,109,.25)}
+.cell.o-cell.just-placed::after{background:rgba(76,201,240,.25)}
+@keyframes flash-place{0%{opacity:1}100%{opacity:0}}
+@keyframes pulse-win{0%{transform:scale(1)}50%{transform:scale(1.08)}100%{transform:scale(1)}}
+.axis-x{display:flex;gap:4px;padding:0 4px;margin-top:4px}
+.axis-x span{width:84px;text-align:center;font-size:.56rem;color:var(--muted)}
+.axis-y{position:absolute;left:-18px;top:4px;display:flex;flex-direction:column;gap:4px}
+.axis-y span{height:84px;display:flex;align-items:center;font-size:.56rem;color:var(--muted)}
+
+.status-bar{text-align:center;font-size:.65rem;letter-spacing:.08em;color:var(--muted);min-height:18px}
+.hl-x{color:var(--x-color)} .hl-y{color:var(--y-color)} .hl-w{color:var(--win);font-weight:bold} .hl-g{color:var(--green);font-weight:bold}
+
+.array-box{background:var(--panel);border:1px solid var(--border);border-radius:6px;
+  padding:8px 12px;width:100%;max-width:284px;font-size:.58rem;color:var(--muted);line-height:1.8;word-break:break-all}
+.array-box .lbl{color:var(--neutral);margin-bottom:2px;font-size:.54rem;letter-spacing:.1em;text-transform:uppercase}
+.cx{color:var(--x-color)} .cy{color:var(--y-color)}
+
+/* Controls */
+.controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center}
+button{font-family:'Space Mono',monospace;font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;
+  border:1px solid var(--border);border-radius:4px;padding:7px 14px;cursor:pointer;
+  transition:all .2s;background:var(--panel);color:var(--text)}
+button:hover{border-color:var(--neutral)} button:disabled{opacity:.3;cursor:not-allowed}
+#btn-step{background:rgba(248,194,58,.1);border-color:rgba(248,194,58,.4);color:var(--win)}
+#btn-step:hover{background:rgba(248,194,58,.18)}
+#btn-auto{background:rgba(76,201,240,.08);border-color:rgba(76,201,240,.3);color:var(--y-color)}
+#btn-auto:hover{background:rgba(76,201,240,.15)}
+#btn-auto.running{background:rgba(255,77,109,.1);border-color:rgba(255,77,109,.4);color:var(--x-color)}
+.speed-wrap{display:flex;align-items:center;gap:6px;font-size:.56rem;color:var(--muted)}
+input[type=range]{width:70px;accent-color:var(--y-color)}
+
+/* Right column stack */
+.right-col{display:flex;flex-direction:column;gap:12px}
+
+/* Maturity */
+.maturity-wrap{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px 14px}
+.mat-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.mat-title{font-family:'Syne',sans-serif;font-size:.62rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.mat-pct{font-family:'Syne',sans-serif;font-size:.85rem;font-weight:800;color:var(--text)}
+.mat-track{height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:6px}
+.mat-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--y-color),var(--green));border-radius:3px;transition:width .4s}
+.mat-fill.mature{background:var(--green);box-shadow:0 0 6px rgba(74,222,128,.5)}
+.mat-hint{font-size:.53rem;color:var(--muted);line-height:1.5}
+
+/* Export */
+.export-panel{background:rgba(74,222,128,.05);border:1px solid rgba(74,222,128,.2);border-radius:8px;padding:12px 14px}
+.exp-title{font-family:'Syne',sans-serif;font-size:.65rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--green);margin-bottom:6px}
+.exp-info{font-size:.56rem;color:var(--muted);line-height:1.65;margin-bottom:10px} .exp-info span{color:var(--text)}
+.exp-btn{width:100%;margin-bottom:6px}
+.exp-btn:last-child{margin-bottom:0}
+#btn-export{background:rgba(74,222,128,.1);border-color:rgba(74,222,128,.35);color:var(--green)}
+#btn-export:hover:not(:disabled){background:rgba(74,222,128,.2)}
+#btn-play-compiled{background:rgba(248,194,58,.08);border-color:rgba(248,194,58,.35);color:var(--win)}
+#btn-play-compiled:hover:not(:disabled){background:rgba(248,194,58,.15)}
+
+/* Stats */
+.stats-row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px;font-size:.58rem}
+.stat-chip{background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:5px 12px;display:flex;flex-direction:column;align-items:center;gap:2px}
+.sc-lbl{color:var(--muted);font-size:.5rem;letter-spacing:.1em;text-transform:uppercase}
+.sc-val{font-family:'Syne',sans-serif;font-size:.85rem;font-weight:800}
+.sx .sc-val{color:var(--x-color)} .sy .sc-val{color:var(--y-color)} .sd .sc-val{color:var(--muted)}
+.sm .sc-val{color:var(--neutral);font-size:.7rem} .sg .sc-val{color:var(--green)}
+
+/* Conv chart */
+.chart-wrap{width:100%;max-width:800px;margin-top:14px}
+.chart-lbl{font-size:.54rem;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:5px}
+#conv-chart{width:100%;height:72px;display:block;background:var(--panel);border:1px solid var(--border);border-radius:6px}
+
+/* Hamle Isı Haritası */
+.heatmap-wrap{width:100%;max-width:800px;margin-top:14px}
+.heatmap-row{display:flex;gap:24px;justify-content:center;flex-wrap:wrap}
+.heatmap-block{display:flex;flex-direction:column;align-items:center;gap:6px}
+.heatmap-title{font-size:.54rem;color:var(--muted);letter-spacing:.1em;text-transform:uppercase}
+.heatmap-grid{display:grid;grid-template-columns:repeat(3,56px);grid-template-rows:repeat(3,56px);gap:3px;background:var(--border);border-radius:6px;padding:3px}
+.hmap-cell{background:var(--cell-bg);border-radius:3px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;position:relative;transition:background .3s}
+.hmap-cell .hc-pct{font-family:'Syne',sans-serif;font-size:.75rem;font-weight:800}
+.hmap-cell .hc-n{font-size:.44rem;color:var(--muted)}
+
+/* Log */
+.log-wrap{width:100%;max-width:800px;margin-top:12px}
+.log-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px}
+.log-title-sm{font-family:'Syne',sans-serif;font-size:.58rem;letter-spacing:.15em;text-transform:uppercase;color:var(--muted)}
+.log-clr{font-size:.5rem;color:var(--muted);background:none;border:1px solid var(--border);border-radius:3px;cursor:pointer;padding:2px 6px}
+#log{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:7px 12px;
+  height:110px;overflow-y:auto;font-size:.56rem;line-height:2;color:var(--muted)}
+#log .entry{display:flex;gap:8px;flex-wrap:wrap}
+#log .game-num{color:var(--border);min-width:28px}
+#log .cw{color:var(--win)} #log .cm{color:var(--neutral)}
+#log::-webkit-scrollbar{width:3px} #log::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* ══════ PLAY PAGE ══════ */
+.play-layout{display:flex;flex-direction:column;align-items:center;gap:14px;width:100%;max-width:480px}
+.play-heading{font-family:'Syne',sans-serif;font-size:.8rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--green)}
+.play-sub{font-size:.58rem;color:var(--muted);letter-spacing:.07em}
+.turn-info{background:rgba(74,222,128,.06);border:1px solid rgba(74,222,128,.25);border-radius:5px;
+  padding:6px 18px;font-size:.6rem;letter-spacing:.07em;text-align:center;color:var(--green);transition:all .3s}
+.turn-info.ai-turn{background:rgba(255,77,109,.06);border-color:rgba(255,77,109,.25);color:var(--x-color)}
+.turn-info.draw-turn{background:rgba(248,194,58,.06);border-color:rgba(248,194,58,.25);color:var(--win)}
+
+.play-board-wrap{position:relative}
+.play-board{display:grid;grid-template-columns:repeat(3,100px);grid-template-rows:repeat(3,100px);
+  gap:5px;background:var(--border);border-radius:10px;overflow:hidden;padding:5px}
+.pcell{background:var(--cell-bg);border-radius:5px;display:flex;align-items:center;
+  justify-content:center;font-family:'Syne',sans-serif;font-size:2.4rem;font-weight:800;
+  cursor:pointer;position:relative;transition:background .15s}
+.pcell:hover:not(.taken){background:var(--cell-hover)}
+.pcell.taken{cursor:not-allowed}
+.pcell.human-cell{color:var(--green)}
+.pcell.ai-cell{color:var(--x-color)}
+.pcell.win-cell{background:rgba(248,194,58,.1);color:var(--win)!important;animation:pulse-win .5s ease}
+.pcell.hp::after{content:'';position:absolute;inset:0;border-radius:5px;animation:flash-place .4s ease;background:rgba(74,222,128,.2)}
+.pcell.ap::after{content:'';position:absolute;inset:0;border-radius:5px;animation:flash-place .4s ease;background:rgba(255,77,109,.2)}
+
+.play-status{text-align:center;font-size:.68rem;letter-spacing:.07em;color:var(--muted);min-height:20px}
+.hl-h{color:var(--green);font-weight:bold} .hl-ai{color:var(--x-color);font-weight:bold}
+
+.score-row{display:flex;gap:10px}
+.sc2{background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:6px 18px;display:flex;flex-direction:column;align-items:center;gap:2px}
+.sc2 .lb{font-size:.5rem;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.sc2 .nv{font-family:'Syne',sans-serif;font-size:1.2rem;font-weight:800}
+.sc2.sh .nv{color:var(--green)} .sc2.sa .nv{color:var(--x-color)} .sc2.sd2 .nv{color:var(--muted)}
+
+.play-ctrl{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+#btn-back{background:rgba(248,194,58,.08);border-color:rgba(248,194,58,.3);color:var(--win)}
+#btn-back:hover{background:rgba(248,194,58,.15)}
+#btn-new-play{background:rgba(74,222,128,.08);border-color:rgba(74,222,128,.3);color:var(--green)}
+#btn-new-play:hover{background:rgba(74,222,128,.15)}
+
+/* ══════ MODAL ══════ */
+.modal-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:200;align-items:center;justify-content:center;padding:16px}
+.modal-ov.open{display:flex}
+.modal{background:var(--panel);border:1px solid var(--border);border-radius:10px;max-width:700px;width:100%;max-height:82vh;display:flex;flex-direction:column}
+.modal-hd{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border)}
+.modal-ttl{font-family:'Syne',sans-serif;font-size:.7rem;font-weight:800;color:var(--green);letter-spacing:.12em;text-transform:uppercase}
+.modal-acts{display:flex;gap:6px}
+#btn-copy{font-size:.56rem;background:rgba(74,222,128,.1);border-color:rgba(74,222,128,.35);color:var(--green)}
+#btn-dl{font-size:.56rem;background:rgba(76,201,240,.08);border-color:rgba(76,201,240,.3);color:var(--y-color)}
+.btn-cls{font-size:.56rem;background:none;border:1px solid var(--border);color:var(--muted)}
+pre#code-out{flex:1;overflow:auto;margin:0;padding:14px 16px;font-family:'Space Mono',monospace;
+  font-size:.58rem;line-height:1.7;color:#9be8a0;background:transparent;white-space:pre}
+pre#code-out::-webkit-scrollbar{width:4px;height:4px}
+pre#code-out::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+@media(max-width:650px){
+  .layout{grid-template-columns:1fr;justify-items:center}
+  .model-card,.right-col,.maturity-wrap,.export-panel{width:100%;max-width:290px}
+  .center-col{order:-1}
+}
+</style>
+</head>
+<body>
+<h1>Koordinat Modelleri</h1>
+<p class="subtitle">Tic-Tac-Toe · Pozisyonel Hafıza · Olgunluk Tespiti · JS Derleme</p>
+
+<div class="tab-bar">
+  <button class="tab active-train" id="tab-train" onclick="showPage('train')">⚙ Eğitim</button>
+  <button class="tab" id="tab-play" onclick="showPage('play')" disabled>▶ Derlenmiş Model ile Oyna</button>
+</div>
+
+<!-- ══════════════ EĞİTİM ══════════════ -->
+<div class="page active" id="page-train">
+  <div class="layout">
+
+    <!-- Sol: Model X -->
+    <div class="model-card model-x" id="card-x">
+      <div class="model-label">Eksen: X (Sütun)</div>
+      <div class="model-name">Model-X</div>
+      <div class="model-stat"><span>Sembol</span><span style="color:var(--x-color)">✕</span></div>
+      <div class="model-stat"><span>Hafıza</span><span id="mem-x">0</span></div>
+      <div class="model-stat"><span>Galibiyet</span><span id="win-x">0</span></div>
+      <div class="move-badge" id="badge-x"></div>
+    </div>
+
+    <!-- Orta -->
+    <div class="center-col">
+      <div class="status-bar" id="status">Hazır.</div>
+      <div class="board-wrap">
+        <div class="axis-y" id="axis-y"></div>
+        <div class="board" id="board"></div>
+        <div class="axis-x" id="axis-x"></div>
+      </div>
+      <div class="array-box">
+        <div class="lbl">Hamle Dizisi</div>
+        <div id="array-val">[ ]</div>
+      </div>
+      <div class="controls">
+        <button id="btn-step">▶ Adım</button>
+        <button id="btn-auto">⏩ Otomatik</button>
+        <button id="btn-reset">↺ Yeni</button>
+        <div class="speed-wrap">
+          <span>Hız</span>
+          <input type="range" id="speed" min="30" max="1200" value="600" step="30">
+        </div>
+      </div>
+    </div>
+
+    <!-- Sağ: Model Y + olgunluk + derleme -->
+    <div class="right-col">
+      <div class="model-card model-y" id="card-y">
+        <div class="model-label">Eksen: Y (Satır)</div>
+        <div class="model-name">Model-Y</div>
+        <div class="model-stat"><span>Sembol</span><span style="color:var(--y-color)">○</span></div>
+        <div class="model-stat"><span>Hafıza</span><span id="mem-y">0</span></div>
+        <div class="model-stat"><span>Galibiyet</span><span id="win-y">0</span></div>
+        <div class="move-badge" id="badge-y"></div>
+      </div>
+
+      <div class="maturity-wrap">
+        <div class="mat-header">
+          <span class="mat-title">Olgunluk</span>
+          <span class="mat-pct" id="mat-pct">0%</span>
+        </div>
+        <div class="mat-track"><div class="mat-fill" id="mat-fill"></div></div>
+        <div class="mat-hint" id="mat-hint">Minimax ile optimal hamleler öğreniliyor. 150 oyun sonunda hafıza tamamlanır.</div>
+      </div>
+
+      <div class="export-panel">
+        <div class="exp-title">⬡ Derleme</div>
+        <div class="exp-info" id="exp-info">Model henüz olgunlaşmadı.<br>Eğitim bitince hafıza <span>if/else</span> JS'e derlenir.</div>
+        <button class="exp-btn" id="btn-export" disabled>↓ JS Olarak Derle &amp; Göster</button>
+        <button class="exp-btn" id="btn-play-compiled" disabled>▶ Derlenmiş ile Oyna</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- İstatistik şeridi -->
+  <div class="stats-row">
+    <div class="stat-chip sx"><span class="sc-lbl">Model-X</span><span class="sc-val" id="s-wx">0</span></div>
+    <div class="stat-chip sy"><span class="sc-lbl">Model-Y</span><span class="sc-val" id="s-wy">0</span></div>
+    <div class="stat-chip sd"><span class="sc-lbl">Beraberlik</span><span class="sc-val" id="s-d">0</span></div>
+    <div class="stat-chip sm"><span class="sc-lbl">Toplam Oyun</span><span class="sc-val" id="s-t">0</span></div>
+    <div class="stat-chip sg"><span class="sc-lbl">Ort. Tur</span><span class="sc-val" id="s-avg">—</span></div>
+    <div class="stat-chip sm"><span class="sc-lbl">Politika Değişimi</span><span class="sc-val" id="s-std">—</span></div>
+  </div>
+
+  <!-- Yakınsama grafiği -->
+  <div class="chart-wrap">
+    <div class="chart-lbl">Oyun başına tur sayısı · — ort (son5) &nbsp;|&nbsp; — anlık</div>
+    <canvas id="conv-chart"></canvas>
+  </div>
+
+  <!-- Hamle Isı Haritası -->
+  <div class="heatmap-wrap">
+    <div class="chart-lbl">Hamle Isı Haritası · Her kare için seçilme sıklığı</div>
+    <div class="heatmap-row">
+      <div class="heatmap-block">
+        <div class="heatmap-title" style="color:var(--x-color)">Model-X (✕)</div>
+        <div class="heatmap-grid" id="hmap-x"></div>
+      </div>
+      <div class="heatmap-block">
+        <div class="heatmap-title" style="color:var(--y-color)">Model-Y (○)</div>
+        <div class="heatmap-grid" id="hmap-y"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Log -->
+  <div class="log-wrap">
+    <div class="log-head">
+      <span class="log-title-sm">Oyun Günlüğü</span>
+      <button class="log-clr" id="btn-log-clr">Temizle</button>
+    </div>
+    <div id="log"></div>
+  </div>
+</div>
+
+<!-- ══════════════ OYUN ══════════════ -->
+<div class="page" id="page-play">
+  <div class="play-layout">
+    <div style="text-align:center">
+      <div class="play-heading">Derlenmiş Model vs İnsan</div>
+      <div class="play-sub" style="margin-top:4px">Sen <span style="color:var(--green)">✕</span> sembolüyle oynuyorsun &nbsp;·&nbsp; Derlenmiş model <span style="color:var(--x-color)">○</span></div>
+    </div>
+    <div class="turn-info" id="turn-info">Senin sıran — bir kareye tıkla</div>
+    <div class="play-board-wrap">
+      <div class="play-board" id="play-board"></div>
+    </div>
+    <div class="play-status" id="play-status"></div>
+    <div class="score-row">
+      <div class="sc2 sh"><div class="lb">Sen</div><div class="nv" id="ps-h">0</div></div>
+      <div class="sc2 sd2"><div class="lb">Beraberlik</div><div class="nv" id="ps-d">0</div></div>
+      <div class="sc2 sa"><div class="lb">Model</div><div class="nv" id="ps-a">0</div></div>
+    </div>
+    <div class="play-ctrl">
+      <button id="btn-back">← Eğitime Dön</button>
+      <button id="btn-new-play">↺ Yeni Oyun</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ MODAL ══════════════ -->
+<div class="modal-ov" id="modal-ov">
+  <div class="modal">
+    <div class="modal-hd">
+      <div class="modal-ttl">compiledModel.js</div>
+      <div class="modal-acts">
+        <button id="btn-copy">📋 Kopyala</button>
+        <button id="btn-dl">⬇ İndir</button>
+        <button class="btn-cls" id="btn-cls">✕</button>
+      </div>
+    </div>
+    <pre id="code-out"></pre>
+  </div>
+</div>
+
+<script>
+/* ════════════════════════════════════════
+   YARDIMCILAR
+════════════════════════════════════════ */
+const SIZE=3;
+const WIN_LINES=[
+  [[0,0],[1,0],[2,0]],[[0,1],[1,1],[2,1]],[[0,2],[1,2],[2,2]],
+  [[0,0],[0,1],[0,2]],[[1,0],[1,1],[1,2]],[[2,0],[2,1],[2,2]],
+  [[0,0],[1,1],[2,2]],[[2,0],[1,1],[0,2]]
+];
+const makeBoard=()=>Array.from({length:SIZE},()=>Array(SIZE).fill(''));
+const boardKey=b=>b.map(r=>r.map(c=>c||'.').join('')).join('|');
+const emptyCells=b=>{const c=[];for(let y=0;y<SIZE;y++)for(let x=0;x<SIZE;x++)if(!b[y][x])c.push([x,y]);return c;};
+const checkWinner=b=>{for(const l of WIN_LINES){const v=l.map(([x,y])=>b[y][x]);if(v[0]&&v[0]===v[1]&&v[1]===v[2])return{mark:v[0],line:l};}return null;};
+const rand=a=>a[Math.floor(Math.random()*a.length)];
+
+/* ════════════════════════════════════════
+   MİNİMAX
+════════════════════════════════════════ */
+const minimaxCache=new Map();
+function minimax(board, mark, myMark, depth){
+  const key=boardKey(board)+'|'+mark;
+  if(minimaxCache.has(key)) return minimaxCache.get(key);
+  const win=checkWinner(board);
+  if(win) return win.mark===myMark?10-depth:depth-10;
+  const empty=emptyCells(board);
+  if(!empty.length) return 0;
+  const scores=empty.map(([x,y])=>{
+    board[y][x]=mark;
+    const opp=mark==='X'?'O':'X';
+    const s=minimax(board,opp,myMark,depth+1);
+    board[y][x]='';
+    return{x,y,s};
+  });
+  const best=mark===myMark
+    ?scores.reduce((a,b)=>b.s>a.s?b:a)
+    :scores.reduce((a,b)=>b.s<a.s?b:a);
+  minimaxCache.set(key,best.s);
+  return best.s;
+}
+function bestMove(board, mark){
+  const empty=emptyCells(board);
+  if(!empty.length) return null;
+  const opp=mark==='X'?'O':'X';
+  let best=null,bestS=-Infinity;
+  for(const[x,y]of empty){
+    board[y][x]=mark;
+    const s=minimax(board,opp,mark,0);
+    board[y][x]='';
+    if(s>bestS){bestS=s;best=[x,y];}
+  }
+  return best;
+}
+
+/* ════════════════════════════════════════
+   MODEL
+   İlk 1-2 hamle rastgele (çeşitlilik için),
+   sonraki hamleler minimax ile optimal.
+   Hafıza: her pozisyon → o oyundaki hamle kaydedilir.
+════════════════════════════════════════ */
+class CoordModel{
+  constructor(name,coord,mark){
+    this.name=name;this.coord=coord;this.mark=mark;
+    this.memory=new Map(); // key → [x,y]
+    this.wins=0;this.lastType='';
+  }
+
+  chooseMove(board, moveCount){
+    const key=boardKey(board), empty=emptyCells(board);
+
+    // İlk 2 hamle (tahtada 0 veya 1 taş varken): rastgele aç
+    // Bu sayede her oyun farklı bir pozisyon ağacını keşfeder
+    const filledCells=9-empty.length;
+    if(filledCells<2){
+      const m=rand(empty);
+      this.lastType='explore';
+      return m;
+    }
+
+    // Hafızada bu pozisyon varsa kullan
+    if(this.memory.has(key)){
+      const m=this.memory.get(key);
+      if(empty.some(([ex,ey])=>ex===m[0]&&ey===m[1])){
+        this.lastType='memory'; return m;
+      }
+    }
+
+    // Hafızada yok → minimax ile bul, hafızaya yaz
+    const mm=bestMove(board,this.mark);
+    if(mm){ this.lastType='minimax'; return mm; }
+    this.lastType='random'; return rand(empty);
+  }
+
+  learn(hist){
+    let changes=0;
+    for(const{key,move}of hist){
+      if(this.memory.has(key)){
+        const old=this.memory.get(key);
+        if(old[0]!==move[0]||old[1]!==move[1]) changes++;
+      }
+      this.memory.set(key,move);
+    }
+    policyChanges.push(hist.length>0?changes/hist.length:0);
+    if(policyChanges.length>200) policyChanges.shift();
+  }
+}
+
+/* ════════════════════════════════════════
+   EĞİTİM DURUMU
+════════════════════════════════════════ */
+const modelX=new CoordModel('Model-X','x','X');
+const modelY=new CoordModel('Model-Y','y','O');
+const stats={wx:0,wy:0,d:0,total:0};
+let board=makeBoard(),moveArr=[],turnIdx=0,gameOver=false,autoTimer=null;
+let histX=[],histY=[],turnLog=[];
+let turnCounts=[];
+let mature=false;
+let compiledCode='';
+
+// Hamle ısı haritası sayaçları: [y][x] → kaç kez seçildi
+const freqX=Array.from({length:3},()=>Array(3).fill(0));
+const freqY=Array.from({length:3},()=>Array(3).fill(0));
+
+// Politika stabilitesi: her learn() çağrısında değişim oranı [0..1]
+// 0 = hiç değişmedi (stabil), 1 = her pozisyon değişti
+let policyChanges=[];
+
+const MAT_WINDOW=30;
+const MAT_MIN_GAMES=150; // bu kadar oyun oynandıktan sonra olgun say
+let matPeakPct=0;
+
+/* ════════════════════════════════════════
+   OLGUNLUK
+   İki kriter: yeterli oyun oynandı VE politika değişimi düşük.
+   Politika değişimi düşmezse salt oyun sayısı yeterli olunca yine de olgun say.
+════════════════════════════════════════ */
+function computeMat(){
+  const n=stats.total;
+  const gamePct=Math.min(1, n/MAT_MIN_GAMES);
+
+  let changeRate=null;
+  if(policyChanges.length>=MAT_WINDOW){
+    const w=policyChanges.slice(-MAT_WINDOW);
+    changeRate=w.reduce((a,b)=>a+b,0)/MAT_WINDOW;
+  }
+
+  // Olgunluk: yeterli oyun oynandı (kesin kriter)
+  const isMature = n>=MAT_MIN_GAMES;
+
+  if(isMature){
+    matPeakPct=1;
+    return{pct:1, mature:true, changeRate};
+  }
+
+  // Bar: oyun sayısı %70 + politika stabilitesi %30
+  const stabPct=changeRate!=null?Math.max(0,Math.min(1,1-changeRate/0.5)):0;
+  const rawPct=gamePct*0.7 + stabPct*0.3;
+  matPeakPct=Math.max(matPeakPct, rawPct);
+  return{pct:Math.min(0.99, matPeakPct), mature:false, changeRate};
+}
+
+/* ════════════════════════════════════════
+   DERLEME → JS if/else
+════════════════════════════════════════ */
+function buildFn(model){
+  const entries=[...model.memory.entries()];
+  if(!entries.length)return'  return null;';
+  return entries.map(([k,m])=>`  if(s===${JSON.stringify(k)}) return [${m[0]},${m[1]}];`).join('\n')+'\n  return null;';
+}
+
+function compileJS(){
+  return`/**
+ * compiledModel.js — Koordinat Modeli Derlemesi
+ * Üretim: ${new Date().toLocaleString('tr-TR')}
+ * Toplam oyun : ${stats.total}
+ * Model-X hafıza: ${modelX.memory.size} giriş
+ * Model-Y hafıza: ${modelY.memory.size} giriş
+ *
+ * Kullanım:
+ *   const key = boardToKey(board);
+ *   const move = compiledMove(board, 'X'); // veya 'O'
+ *   // move = [x, y]  |  x=sütun, y=satır
+ */
+
+function boardToKey(board){
+  return board.map(r=>r.map(c=>c||'.').join('')).join('|');
+}
+
+function randomMove(board){
+  const e=[];
+  for(let y=0;y<3;y++) for(let x=0;x<3;x++) if(!board[y][x]) e.push([x,y]);
+  return e.length ? e[Math.floor(Math.random()*e.length)] : null;
+}
+
+// Model-X (sembol: X  ·  sahip olduğu eksen: x / sütun)
+function compiledModelX(s){
+${buildFn(modelX)}
+}
+
+// Model-Y (sembol: O  ·  sahip olduğu eksen: y / satır)
+function compiledModelY(s){
+${buildFn(modelY)}
+}
+
+// Birleşik arayüz — mark: 'X' veya 'O'
+function compiledMove(board, mark){
+  const s=boardToKey(board);
+  const raw = mark==='X' ? compiledModelX(s) : compiledModelY(s);
+  if(raw){
+    const[x,y]=raw;
+    if(!board[y][x]) return raw;
+  }
+  return randomMove(board); // bilinmeyen pozisyon → rastgele
+}
+`;
+}
+
+/* ════════════════════════════════════════
+   DOM — EĞİTİM
+════════════════════════════════════════ */
+const boardEl=document.getElementById('board');
+const statusEl=document.getElementById('status');
+const arrayEl=document.getElementById('array-val');
+const logEl=document.getElementById('log');
+const cardX=document.getElementById('card-x'),cardY=document.getElementById('card-y');
+const badgeX=document.getElementById('badge-x'),badgeY=document.getElementById('badge-y');
+const speedEl=document.getElementById('speed');
+const matFill=document.getElementById('mat-fill'),matPct=document.getElementById('mat-pct');
+const convCanvas=document.getElementById('conv-chart'),convCtx=convCanvas.getContext('2d');
+
+function buildBoardDOM(){
+  boardEl.innerHTML='';
+  document.getElementById('axis-x').innerHTML='';
+  document.getElementById('axis-y').innerHTML='';
+  for(let y=0;y<SIZE;y++){const s=document.createElement('span');s.textContent=y;document.getElementById('axis-y').appendChild(s);}
+  for(let x=0;x<SIZE;x++){const s=document.createElement('span');s.textContent=x;document.getElementById('axis-x').appendChild(s);}
+  for(let y=0;y<SIZE;y++)for(let x=0;x<SIZE;x++){const c=document.createElement('div');c.className='cell';c.id=`c-${x}-${y}`;boardEl.appendChild(c);}
+}
+
+function renderBoard(winLine,last){
+  const ws=winLine?new Set(winLine.map(([x,y])=>`${x}-${y}`)):new Set();
+  for(let y=0;y<SIZE;y++)for(let x=0;x<SIZE;x++){
+    const c=document.getElementById(`c-${x}-${y}`),v=board[y][x];
+    c.textContent=v==='X'?'✕':v==='O'?'○':'';
+    c.className='cell'+(v==='X'?' x-cell':v==='O'?' o-cell':'')+
+      (ws.has(`${x}-${y}`)?' win-cell':'')+
+      (last&&last[0]===x&&last[1]===y?' just-placed':'');
+  }
+}
+
+function renderArr(){
+  if(!moveArr.length){arrayEl.textContent='[ ]';return;}
+  arrayEl.innerHTML='[ '+moveArr.map(([x,y],i)=>`<span class="${i%2===0?'cx':'cy'}">[${x},${y}]</span>`).join(', ')+' ]';
+}
+
+function updateCards(active){
+  cardX.className='model-card model-x'+(active===modelX?' active-x':'');
+  cardY.className='model-card model-y'+(active===modelY?' active-y':'');
+  document.getElementById('mem-x').textContent=modelX.memory.size;
+  document.getElementById('mem-y').textContent=modelY.memory.size;
+  document.getElementById('win-x').textContent=modelX.wins;
+  document.getElementById('win-y').textContent=modelY.wins;
+  document.getElementById('s-wx').textContent=stats.wx;
+  document.getElementById('s-wy').textContent=stats.wy;
+  document.getElementById('s-d').textContent=stats.d;
+  document.getElementById('s-t').textContent=stats.total;
+}
+
+function badge(model,move,type){
+  const b=model===modelX?badgeX:badgeY;
+  const label=type==='memory'?'🧠 HAFIZA':type==='minimax'?'♟ MİNİMAX':type==='explore'?'🔍 KEŞİF':'🎲 RASTGELE';
+  b.textContent=label+` → [${move[0]},${move[1]}]`;
+  b.className='move-badge show';
+  setTimeout(()=>b.className='move-badge',1500);
+}
+
+function addLog(num,entries,result){
+  const d=document.createElement('div');d.className='entry';
+  const seq=entries.map(([m,mv])=>`<span class="${m==='X'?'cx':'cy'}">[${mv[0]},${mv[1]}]</span>`).join(' ');
+  const res=result==='X'?`<span class="cx">X Kazandı</span>`:result==='O'?`<span class="cy">O Kazandı</span>`:`<span class="cm">Beraberlik</span>`;
+  d.innerHTML=`<span class="game-num">#${num}</span>${seq}<span class="cw"> ${res}</span>`;
+  logEl.appendChild(d);logEl.scrollTop=logEl.scrollHeight;
+}
+
+/* ════════════════════════════════════════
+   YAKINsama GRAFİĞİ
+════════════════════════════════════════ */
+function drawChart(){
+  const dpr=window.devicePixelRatio||1;
+  const W=convCanvas.offsetWidth||800,H=72;
+  convCanvas.width=W*dpr;convCanvas.height=H*dpr;
+  convCtx.scale(dpr,dpr);convCtx.clearRect(0,0,W,H);
+  if(turnCounts.length<2)return;
+  const d=turnCounts,mn=1,mx=9,pL=8,pR=8,pT=6,pB=6,cW=W-pL-pR,cH=H-pT-pB;
+  const toX=(i)=>pL+i/(Math.max(d.length-1,1))*cW;
+  const toY=(v)=>pT+cH-(Math.min(mx,Math.max(mn,v))-mn)/(mx-mn)*cH;
+  // grid lines
+  convCtx.strokeStyle='#1e1e2e';convCtx.lineWidth=1;
+  [3,5,7,9].forEach(v=>{convCtx.beginPath();convCtx.moveTo(pL,toY(v));convCtx.lineTo(W-pR,toY(v));convCtx.stroke();});
+  // raw line
+  convCtx.beginPath();d.forEach((v,i)=>i===0?convCtx.moveTo(toX(i),toY(v)):convCtx.lineTo(toX(i),toY(v)));
+  convCtx.strokeStyle=mature?'rgba(74,222,128,.35)':'rgba(76,201,240,.35)';convCtx.lineWidth=1;convCtx.stroke();
+  // moving avg (window=5)
+  if(d.length>=5){
+    convCtx.beginPath();let first=true;
+    d.forEach((v,i)=>{if(i<4)return;const avg=d.slice(i-4,i+1).reduce((a,b)=>a+b,0)/5;first?(convCtx.moveTo(toX(i),toY(avg)),first=false):convCtx.lineTo(toX(i),toY(avg));});
+    convCtx.strokeStyle=mature?'#4ade80':'#f8c23a';convCtx.lineWidth=2;convCtx.stroke();
+  }
+}
+
+/* ════════════════════════════════════════
+   HAMLE ISI HARİTASI
+════════════════════════════════════════ */
+function buildHeatmapDOM(){
+  ['hmap-x','hmap-y'].forEach(id=>{
+    const g=document.getElementById(id);g.innerHTML='';
+    for(let y=0;y<3;y++)for(let x=0;x<3;x++){
+      const c=document.createElement('div');c.className='hmap-cell';c.id=`${id}-${x}-${y}`;
+      c.innerHTML=`<span class="hc-pct">—</span><span class="hc-n"></span>`;
+      g.appendChild(c);
+    }
+  });
+}
+
+function drawHeatmap(){
+  [['hmap-x',freqX,'#ff4d6d'],['hmap-y',freqY,'#4cc9f0']].forEach(([id,freq,color])=>{
+    const total=freq.flat().reduce((a,b)=>a+b,0)||1;
+    const maxV=Math.max(...freq.flat(),1);
+    for(let y=0;y<3;y++)for(let x=0;x<3;x++){
+      const c=document.getElementById(`${id}-${x}-${y}`);
+      const v=freq[y][x];
+      const pct=Math.round(v/total*100);
+      const intensity=v/maxV;
+      // renk: düşük→koyu, yüksek→canlı
+      const alpha=0.08+intensity*0.55;
+      c.style.background=`rgba(${color==='#ff4d6d'?'255,77,109':'76,201,240'},${alpha.toFixed(2)})`;
+      c.querySelector('.hc-pct').textContent=total>1?(pct+'%'):'—';
+      c.querySelector('.hc-pct').style.color=intensity>0.5?color:'var(--muted)';
+      c.querySelector('.hc-n').textContent=v>0?`(${v})`:'';
+    }
+  });
+}
+
+/* ════════════════════════════════════════
+   OLGUNLUK UI
+════════════════════════════════════════ */
+function updateMatUI(){
+  const{pct,mature:m,changeRate}=computeMat();
+  const p=Math.min(100,Math.round(pct*100));
+  matFill.style.width=p+'%';matPct.textContent=p+'%';
+  // istatistik şeridini güncelle
+  document.getElementById('s-avg').textContent=
+    turnCounts.length>0?(turnCounts.slice(-20).reduce((a,b)=>a+b,0)/Math.min(20,turnCounts.length)).toFixed(1):'—';
+  document.getElementById('s-std').textContent=
+    changeRate!=null?(changeRate*100).toFixed(1)+'%':'—';
+  if(m&&!mature){
+    mature=true;
+    matFill.classList.add('mature');
+    document.getElementById('mat-hint').innerHTML='<span style="color:var(--green)">✓ Olgunlaştı! Derlemeye hazır.</span>';
+    document.getElementById('btn-export').disabled=false;
+    document.getElementById('btn-play-compiled').disabled=false;
+    document.getElementById('tab-play').disabled=false;
+    document.getElementById('exp-info').innerHTML=
+      `<span>${stats.total}</span> oyun · Politika değişimi <span>${(changeRate*100).toFixed(1)}%</span><br>Hafıza X=<span>${modelX.memory.size}</span> Y=<span>${modelY.memory.size}</span>`;
+    statusEl.innerHTML=`<span class="hl-g">✓ Model olgunlaştı — derleyebilirsin!</span>`;
+  }
+}
+
+/* ════════════════════════════════════════
+   OYUN MANTIĞI — EĞİTİM
+════════════════════════════════════════ */
+let firstPlayer=0; // 0=ModelX başlar, 1=ModelY başlar (her oyun değişir)
+const curModel=()=>( (turnIdx+firstPlayer)%2===0 )?modelX:modelY;
+
+function step(){
+  if(gameOver){newGame();return;}
+  const m=curModel(),key=boardKey(board),move=m.chooseMove(board, moveArr.length),[x,y]=move;
+  // ısı haritası sayacı
+  if(m===modelX) freqX[y][x]++; else freqY[y][x]++;
+  board[y][x]=m.mark;moveArr.push([x,y]);turnLog.push([m.mark,[x,y]]);
+  if(m===modelX)histX.push({key,move});else histY.push({key,move});
+  badge(m,move,m.lastType);
+  updateCards(curModel()===modelX?modelY:modelX);
+  const win=checkWinner(board),draw=!win&&!emptyCells(board).length;
+  renderBoard(win?.line,move);renderArr();
+  if(win){
+    gameOver=true;m.wins++;turnCounts.push(moveArr.length);
+    modelX.learn(histX);
+    modelY.learn(histY);
+    if(m===modelX){stats.wx++;}else{stats.wy++;}
+    stats.total++;
+    statusEl.innerHTML=`<span class="${m===modelX?'hl-x':'hl-y'}">${m.name}</span> <span class="hl-w">KAZANDI!</span>`;
+    addLog(stats.total,turnLog,m.mark);updateCards(null);updateMatUI();drawChart();drawHeatmap();return;
+  }
+  if(draw){
+    gameOver=true;turnCounts.push(moveArr.length);
+    modelX.learn(histX);
+    modelY.learn(histY);
+    stats.d++;stats.total++;
+    statusEl.innerHTML=`<span class="hl-w">BERABERLİK</span>`;
+    addLog(stats.total,turnLog,'draw');updateCards(null);updateMatUI();drawChart();drawHeatmap();return;
+  }
+  turnIdx++;const next=curModel();
+  statusEl.innerHTML=`Sıra: <span class="${next===modelX?'hl-x':'hl-y'}">${next.name}</span>`;
+  updateCards(next);
+}
+
+function newGame(){
+  firstPlayer=stats.total%2; // sırayla değişir: çift oyun X başlar, tek oyun Y başlar
+  board=makeBoard();moveArr=[];turnIdx=0;gameOver=false;histX=[];histY=[];turnLog=[];
+  renderBoard(null,null);renderArr();
+  const starter=curModel();
+  statusEl.innerHTML=`Sıra: <span class="${starter===modelX?'hl-x':'hl-y'}">${starter.name}</span>`;
+  updateCards(starter);badgeX.className='move-badge';badgeY.className='move-badge';
+}
+
+function startAuto(){
+  if(autoTimer)return;
+  document.getElementById('btn-auto').textContent='⏹ Durdur';
+  document.getElementById('btn-auto').classList.add('running');
+  const tick=()=>{
+    step();
+    const d=Math.max(20,1230-parseInt(speedEl.value));
+    if(gameOver){
+      autoTimer=setTimeout(()=>{newGame();autoTimer=setTimeout(tick,d);},400);
+    }else{
+      autoTimer=setTimeout(tick,d);
+    }
+  };
+  autoTimer=setTimeout(tick,20);
+}
+function stopAuto(){
+  if(autoTimer){clearTimeout(autoTimer);autoTimer=null;}
+  document.getElementById('btn-auto').textContent='⏩ Otomatik';
+  document.getElementById('btn-auto').classList.remove('running');
+}
+
+/* ════════════════════════════════════════
+   MODAL
+════════════════════════════════════════ */
+function openModal(code){
+  compiledCode=code;
+  document.getElementById('code-out').textContent=code;
+  document.getElementById('modal-ov').classList.add('open');
+}
+document.getElementById('btn-export').addEventListener('click',()=>openModal(compileJS()));
+document.getElementById('btn-copy').addEventListener('click',()=>{
+  navigator.clipboard.writeText(compiledCode).then(()=>{
+    document.getElementById('btn-copy').textContent='✓ Kopyalandı';
+    setTimeout(()=>document.getElementById('btn-copy').textContent='📋 Kopyala',1500);
+  });
+});
+document.getElementById('btn-dl').addEventListener('click',()=>{
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([compiledCode],{type:'text/javascript'}));
+  a.download='compiledModel.js';a.click();
+});
+document.getElementById('btn-cls').addEventListener('click',()=>document.getElementById('modal-ov').classList.remove('open'));
+document.getElementById('modal-ov').addEventListener('click',e=>{if(e.target===document.getElementById('modal-ov'))document.getElementById('modal-ov').classList.remove('open');});
+
+/* ════════════════════════════════════════
+   OYUN SAYFASI
+════════════════════════════════════════ */
+const playScore={h:0,d:0,a:0};
+let pBoard=null,pOver=false;
+const H_MARK='X',AI_MARK='O';
+
+function buildPlayBoard(){
+  const pb=document.getElementById('play-board');pb.innerHTML='';
+  for(let y=0;y<SIZE;y++)for(let x=0;x<SIZE;x++){
+    const c=document.createElement('div');c.className='pcell';c.dataset.x=x;c.dataset.y=y;
+    c.addEventListener('click',onHumanClick);pb.appendChild(c);
+  }
+}
+
+function renderPlay(winLine,hLast,aLast){
+  const ws=winLine?new Set(winLine.map(([x,y])=>`${x}-${y}`)):new Set();
+  for(let y=0;y<SIZE;y++)for(let x=0;x<SIZE;x++){
+    const c=document.querySelector(`#play-board .pcell[data-x="${x}"][data-y="${y}"]`);
+    const v=pBoard[y][x];
+    c.textContent=v===H_MARK?'✕':v===AI_MARK?'○':'';
+    c.className='pcell'+(v?(' taken'+(v===H_MARK?' human-cell':' ai-cell')):'')+ 
+      (ws.has(`${x}-${y}`)?' win-cell':'')+
+      (hLast&&hLast[0]===x&&hLast[1]===y?' hp':'')+
+      (aLast&&aLast[0]===x&&aLast[1]===y?' ap':'');
+  }
+}
+
+function aiPlayMove(){
+  const key=boardKey(pBoard),empty=emptyCells(pBoard);
+  if(modelY.memory.has(key)){
+    const m=modelY.memory.get(key);
+    if(empty.some(([ex,ey])=>ex===m[0]&&ey===m[1])) return m;
+  }
+  // Hafızada yoksa minimax ile oyna
+  return bestMove(pBoard,'O')||rand(empty);
+}
+
+function onHumanClick(e){
+  if(pOver)return;
+  const x=parseInt(e.currentTarget.dataset.x),y=parseInt(e.currentTarget.dataset.y);
+  if(pBoard[y][x])return;
+  pBoard[y][x]=H_MARK;renderPlay(null,[x,y],null);
+  const w1=checkWinner(pBoard);
+  if(w1){endPlay('human',w1.line);return;}
+  if(!emptyCells(pBoard).length){endPlay('draw',null);return;}
+  const ti=document.getElementById('turn-info');
+  ti.textContent='Derlenmiş model düşünüyor…';ti.className='turn-info ai-turn';
+  setTimeout(()=>{
+    const[ax,ay]=aiPlayMove();
+    pBoard[ay][ax]=AI_MARK;renderPlay(null,null,[ax,ay]);
+    const w2=checkWinner(pBoard);
+    if(w2){endPlay('ai',w2.line);return;}
+    if(!emptyCells(pBoard).length){endPlay('draw',null);return;}
+    ti.textContent='Senin sıran — bir kareye tıkla';ti.className='turn-info';
+  },420);
+}
+
+function endPlay(result,winLine){
+  pOver=true;renderPlay(winLine,null,null);
+  const ti=document.getElementById('turn-info'),ps=document.getElementById('play-status');
+  if(result==='human'){
+    playScore.h++;ps.innerHTML='<span class="hl-h">🏆 Kazandın!</span>';
+    ti.textContent='Tebrikler!';ti.className='turn-info';
+  }else if(result==='ai'){
+    playScore.a++;ps.innerHTML='<span class="hl-ai">Derlenmiş model kazandı.</span>';
+    ti.textContent='Model kazandı.';ti.className='turn-info ai-turn';
+  }else{
+    playScore.d++;ps.innerHTML='<span class="hl-w">Beraberlik.</span>';
+    ti.textContent='Beraberlik!';ti.className='turn-info draw-turn';
+  }
+  document.getElementById('ps-h').textContent=playScore.h;
+  document.getElementById('ps-d').textContent=playScore.d;
+  document.getElementById('ps-a').textContent=playScore.a;
+}
+
+function newPlayGame(){
+  pBoard=makeBoard();pOver=false;renderPlay(null,null,null);
+  document.getElementById('play-status').textContent='';
+  const ti=document.getElementById('turn-info');
+  ti.textContent='Senin sıran — bir kareye tıkla';ti.className='turn-info';
+}
+
+/* ════════════════════════════════════════
+   SAYFA GEÇİŞİ
+════════════════════════════════════════ */
+function showPage(name){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  document.getElementById('tab-train').className='tab'+(name==='train'?' active-train':'');
+  document.getElementById('tab-play').className='tab'+(name==='play'?' active-play':'')+(mature?'':' ');
+  if(name==='play'){buildPlayBoard();newPlayGame();}
+}
+
+document.getElementById('btn-play-compiled').addEventListener('click',()=>showPage('play'));
+document.getElementById('btn-back').addEventListener('click',()=>showPage('train'));
+document.getElementById('btn-new-play').addEventListener('click',newPlayGame);
+document.getElementById('btn-step').addEventListener('click',()=>{stopAuto();step();});
+document.getElementById('btn-auto').addEventListener('click',()=>{if(autoTimer)stopAuto();else startAuto();});
+document.getElementById('btn-reset').addEventListener('click',()=>{stopAuto();newGame();});
+document.getElementById('btn-log-clr').addEventListener('click',()=>logEl.innerHTML='');
+window.addEventListener('resize',drawChart);
+
+/* ════════════════════════════════════════
+   BAŞLAT
+════════════════════════════════════════ */
+buildBoardDOM();
+buildHeatmapDOM();
+newGame();
+</script>
+</body>
+</html>
